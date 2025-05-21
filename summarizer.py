@@ -1,8 +1,8 @@
 from collections import defaultdict
 
 def categorize_email(email):
-    sender = email['from'].lower()
-    subject = email['subject'].lower()
+    sender = email["from"].lower()
+    subject = email["subject"].lower()
 
     if "skmediagroup.com.au" in sender or "client" in subject or "urgent" in subject:
         return "urgent"
@@ -20,17 +20,45 @@ def categorize_email(email):
 def summarize_emails(emails):
     print("🔍 Step 2: Summarizing emails...")
 
+    # Sort emails into buckets
     buckets = defaultdict(list)
-
     for email in emails:
         tag = categorize_email(email)
         buckets[tag].append(email)
 
+    # Order of importance
+    priority_order = ["urgent", "internal", "news", "newsletters", "default", "marketing"]
+
     summaries = []
-    for tag, grouped_emails in buckets.items():
-        summary = f"Summary for {len(grouped_emails)} emails in group '{tag}':\n"
+
+    for tag in priority_order:
+        if tag not in buckets:
+            continue
+
+        grouped_emails = buckets[tag]
+
+        # Custom intro per category
+        if tag == "urgent":
+            intro = "⚠️ Here's what you need to handle first:"
+        elif tag == "internal":
+            intro = "👥 Internal chatter and updates:"
+        elif tag == "news":
+            intro = "🗞️ Big stories from trusted outlets:"
+        elif tag == "newsletters":
+            intro = "📬 Newsletter nuggets worth noting:"
+        elif tag == "marketing":
+            intro = "🛍️ Brand fluff and shopping bait:"
+        else:
+            intro = "📩 Everything else hanging out in the inbox:"
+
+        summary = f"{intro}\n"
+
         for email in grouped_emails:
             summary += f"• {email['subject']} (from {email['from']})\n"
-        summaries.append(summary)
+
+        summaries.append({
+            "category": tag,
+            "summary": summary.strip()
+        })
 
     return summaries

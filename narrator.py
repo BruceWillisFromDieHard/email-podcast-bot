@@ -1,6 +1,7 @@
 import os
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
+import math
 
 load_dotenv()
 
@@ -11,33 +12,49 @@ def create_audio(summaries):
 
     client = ElevenLabs(api_key=api_key)
 
-    if not summaries:
-        raise Exception("❌ No summaries provided to generate audio.")
+    # Custom intro and outro
+    intro = (
+        "🎙️ Good morning, Mr President. Welcome to another day. "
+        "Here’s what you need to know today, fresh out of the inbox."
+    )
 
-    # Handle case where summaries might be strings instead of dicts
-    if isinstance(summaries[0], str):
-        script = "\n\n".join(summaries)
-    elif isinstance(summaries[0], dict):
-        # Expected structure: [{ "category": "...", "summary": "..." }, ...]
-        script = "\n\n".join(
-            [f"{s.get('category', 'General')}: {s.get('summary', '')}" for s in summaries]
-        )
+    outro = "☕ That’s your lot. Give em hell today chief."
+
+    # Combine all summaries into one script with intro/outro
+    body = "\n\n".join([f"{summary['summary']}" for summary in summaries])
+    full_script = f"{intro}\n\n{body}\n\n{outro}"
+
+    if len(full_script) > 10000:
+        print("⚠️ Script too long, splitting into chunks...")
+        chunk_size = 9500
+        chunks = [
+            full_script[i:i + chunk_size] for i in range(0, len(full_script), chunk_size)
+        ]
     else:
-        raise Exception("❌ Unexpected summary structure.")
+        chunks = [full_script]
 
-    print("🎙️ Generating audio with ElevenLabs...")
+    audio_output = b""
+    for idx, chunk in enumerate(chunks):
+        print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
+        try:
+            audio = client.text_to_speech.convert(
+                voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
+                model_id="eleven_monolingual_v1",
+                text=chunk
+            )
+            audio_output += audio
+        except Exception as e:
+            print(f"❌ Error generating audio for chunk {idx + 1}: {e}")
+            continue
 
-    try:
-        audio = client.text_to_speech.convert(
-            voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel (or replace with your chosen voice)
-            model_id="eleven_monolingual_v1",
-            text=script
-        )
-    except Exception as e:
-        raise Exception(f"❌ Failed to generate audio: {str(e)}")
+    if audio_output:
+        filename = f"daily_email_recap_{get_today_string()}.mp3"
+        with open(filename, "wb") as f:
+            f.write(audio_output)
+        print(f"✅ Audio saved to {filename}")
+    else:
+        raise Exception("❌ All audio generation attempts failed")
 
-    output_path = "daily_email_recap.mp3"
-    with open(output_path, "wb") as f:
-        f.write(audio)
-
-    print(f"✅ Audio saved to {output_path}")
+def get_today_string():
+    from datetime import datetime
+    return datetime.now().strftime("%A_%Y-%m-%d")
