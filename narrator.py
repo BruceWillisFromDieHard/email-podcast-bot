@@ -40,7 +40,7 @@ def create_audio(summaries):
         print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
         try:
             audio = b"".join(client.text_to_speech.convert(
-                voice_id="8PwhAQYisogJcn6egCE6",  # Antoni – deeper tone, better suited for briefing
+                voice_id="29vD33N1CtxCmqQRPOHJ",  # Michael (deep, polished tone)
                 model_id="eleven_monolingual_v1",
                 text=chunk
             ))
@@ -53,5 +53,6 @@ def create_audio(summaries):
         with open(filename, "wb") as f:
             f.write(audio_output)
         print(f"✅ Audio saved to {filename}")
+        return filename
     else:
         raise Exception("❌ All audio generation attempts failed")
