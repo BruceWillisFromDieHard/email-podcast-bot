@@ -1,28 +1,30 @@
 import os
-from elevenlabs import generate, Voice, VoiceSettings, save
+from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
 
 load_dotenv()
 
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
 def create_audio(summaries):
-    from elevenlabs import set_api_key
-    set_api_key(ELEVENLABS_API_KEY)
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise Exception("❌ ELEVENLABS_API_KEY not found in environment variables")
+
+    client = ElevenLabs(api_key=api_key)
 
     script = "\n\n".join(
         [f"{summary['category']}: {summary['summary']}" for summary in summaries]
     )
 
-    print("🎙️ Generating chunk 1/1...")
+    print("🎙️ Generating audio with ElevenLabs...")
 
-    audio = generate(
-        text=script,
-        voice=Voice(
-            voice_id="Rachel",  # You can replace with a specific voice ID
-            settings=VoiceSettings(stability=0.4, similarity_boost=0.85)
-        ),
-        model="eleven_monolingual_v1"
+    audio = client.text_to_speech.convert(
+        voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel (or replace with your chosen voice)
+        model_id="eleven_monolingual_v1",
+        text=script
     )
 
-    save(audio, "daily_email_recap.mp3")
+    output_path = "daily_email_recap.mp3"
+    with open(output_path, "wb") as f:
+        f.write(audio)
+
+    print(f"✅ Audio saved to {output_path}")
