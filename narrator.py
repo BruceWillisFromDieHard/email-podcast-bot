@@ -39,11 +39,11 @@ def create_audio(summaries):
     for idx, chunk in enumerate(chunks):
         print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
         try:
-            audio = client.text_to_speech.convert(
-                voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
+            audio = b"".join(client.text_to_speech.convert(
+                voice_id="b5Lt5W1wI1kV5WjS8jzd",  # Antoni – deeper tone, better suited for briefing
                 model_id="eleven_monolingual_v1",
                 text=chunk
-            )
+            ))
             audio_output += audio
         except Exception as e:
             print(f"❌ Error generating audio for chunk {idx + 1}: {e}")
