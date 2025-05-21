@@ -1,126 +1,60 @@
 import os
-from dotenv import load_dotenv
-from msal import PublicClientApplication
-from bs4 import BeautifulSoup
 import requests
-from datetime import datetime, timedelta
-import email.utils
+from msal import ConfidentialClientApplication
+from dotenv import load_dotenv
 
 load_dotenv()
 
-# === Custom rules ===
-CLIENT_DOMAINS = ["@skmediagroup.com.au", "@aria.com.au"]
-INTERNAL_SENDERS = ["andrew@skmediagroup.com.au"]
-NEWS_SOURCES = ["@newyorker.com", "@nytimes.com", "@monocle.com", "@puck.news", "@substack.com"]
-SHOPPING_DOMAINS = ["@farfetch.com", "@ssense.com", "@theiconic.com.au", "@shop.", "@norse", "@matchesfashion"]
-STREAM_KEYWORDS = ["7West Media", "ARIA"]
+CLIENT_ID = os.getenv("MS_CLIENT_ID")
+CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET")
+TENANT_ID = os.getenv("MS_TENANT_ID")
 
-now = datetime.now()
-eight_pm_yesterday = (now - timedelta(days=1)).replace(hour=20, minute=0, second=0, microsecond=0)
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+SCOPE = ["https://graph.microsoft.com/.default"]
+GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"
 
-def classify_email(sender, subject, body):
-    sender_lower = sender.lower()
+# Replace with the actual mailbox you'd like to read from
+TARGET_USER = os.getenv("MS_USER_EMAIL")  # optional: create a new secret for this
 
-    if any(domain in sender_lower for domain in SHOPPING_DOMAINS):
-        return "shopping"
-    if any(domain in sender_lower for domain in NEWS_SOURCES):
-        return "news"
-    if "stream" in sender_lower:
-        if any(keyword.lower() in body.lower() for keyword in STREAM_KEYWORDS):
-            return "stream_corp"
-        else:
-            return "stream_other"
-    if any(domain in sender_lower for domain in CLIENT_DOMAINS):
-        return "client"
-    if sender_lower in INTERNAL_SENDERS:
-        return "internal"
-    if any(word in subject.lower() for word in ["urgent", "action required", "asap", "important"]):
-        return "urgent"
-    return "general"
+def get_token():
+    app = ConfidentialClientApplication(
+        client_id=CLIENT_ID,
+        client_credential=CLIENT_SECRET,
+        authority=AUTHORITY,
+    )
 
-def extract_sender_name(sender_str):
-    if "<" in sender_str and ">" in sender_str:
-        return sender_str.split("<")[0].strip()
-    if "@" in sender_str:
-        return sender_str.split("@")[0].split(".")[0].capitalize()
-    return sender_str.strip()
+    result = app.acquire_token_for_client(scopes=SCOPE)
+    if "access_token" in result:
+        return result["access_token"]
+    else:
+        raise Exception(f"❌ Token fetch failed: {result.get('error_description')}")
 
 def fetch_emails():
-    client_id = os.getenv("MS_CLIENT_ID")
-    tenant_id = os.getenv("MS_TENANT_ID")
-    user_email = os.getenv("MS_EMAIL")
+    access_token = get_token()
 
-    authority = f"https://login.microsoftonline.com/{tenant_id}"
-    scope = ["Mail.Read"]
-
-    app = PublicClientApplication(client_id=client_id, authority=authority)
-
-    accounts = app.get_accounts()
-    if accounts:
-        result = app.acquire_token_silent(scope, account=accounts[0])
-    else:
-        flow = app.initiate_device_flow(scopes=scope)
-        if "user_code" not in flow:
-            raise Exception("❌ Failed to initiate device flow")
-        print(f"🔐 Go to {flow['verification_uri']} and enter code: {flow['user_code']}")
-        print("⏳ Waiting for authentication...")
-        result = app.acquire_token_by_device_flow(flow)
-
-    if "access_token" not in result:
-        print(f"🛑 Token response from Microsoft:\n{result}")
-        raise Exception("❌ Failed to authenticate with Microsoft Graph")
-
+    # Example: Get messages from a specific user’s inbox
     headers = {
-        'Authorization': f"Bearer {result['access_token']}",
-        'Content-Type': 'application/json'
+        "Authorization": f"Bearer {access_token}",
+        "Prefer": 'outlook.body-content-type="text"',
     }
 
-    start_time = eight_pm_yesterday.isoformat()
-    print(f"📡 Fetching last 100 messages from inbox, filtering in Python since {start_time}")
+    # You can set a static user here or pass dynamically
+    user_email = TARGET_USER or "your-user@domain.com"
+    url = f"{GRAPH_API_ENDPOINT}/users/{user_email}/mailFolders/Inbox/messages?$top=10"
 
-    inbox_url = f'https://graph.microsoft.com/v1.0/users/{user_email}/mailFolders/inbox/messages?$orderby=receivedDateTime desc&$top=100'
-    try:
-        inbox_resp = requests.get(inbox_url, headers=headers)
-        inbox_resp.raise_for_status()
-    except Exception as e:
-        print(f"⚠️ Failed to fetch or parse inbox response: {e}")
-        return []
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"❌ Graph API error: {response.status_code} - {response.text}")
 
-    data = inbox_resp.json()
-    emails = []
+    messages = response.json().get("value", [])
+    emails = [
+        {
+            "subject": msg["subject"],
+            "from": msg["from"]["emailAddress"]["name"],
+            "body": msg["body"]["content"],
+            "received": msg["receivedDateTime"],
+        }
+        for msg in messages
+    ]
 
-    for msg in data.get('value', []):
-        subject = msg.get('subject') or "(No Subject)"
-        sender_full = msg.get('from', {}).get('emailAddress', {}).get('name') or msg.get('from', {}).get('emailAddress', {}).get('address') or "(Unknown Sender)"
-        sender = extract_sender_name(sender_full)
-        body = msg.get('body', {}).get('content') or ""
-        date_str = msg.get('receivedDateTime')
-
-        try:
-            received_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
-        except:
-            try:
-                received_dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-            except:
-                received_dt = now
-
-        if received_dt < eight_pm_yesterday:
-            continue
-
-        try:
-            body = BeautifulSoup(body, "html.parser").get_text()
-        except Exception:
-            pass
-
-        tag = classify_email(sender_full, subject, body)
-
-        emails.append({
-            'subject': subject.strip(),
-            'sender': sender.strip(),
-            'body': body.strip(),
-            'received': received_dt.isoformat(),
-            'tag': tag
-        })
-
-    print(f"📨 Total emails after filtering: {len(emails)}")
     return emails
