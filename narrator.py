@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from elevenlabs import Voice, VoiceSettings, generate
+from elevenlabs.client import ElevenLabs
 from datetime import datetime
 
 load_dotenv()
@@ -13,45 +13,40 @@ def create_audio(summaries):
     if not api_key:
         raise Exception("❌ ELEVENLABS_API_KEY not found in environment variables")
 
+    client = ElevenLabs(api_key=api_key)
+
     # Custom intro and outro
     intro = (
         "🎙️ Good morning, Mr President. Welcome to another day. "
         "Here’s what you need to know today, fresh out of the inbox."
     )
-
     outro = "☕ That’s your lot. Give em hell today chief."
 
-    # Group summaries by tag with structure
+    # Combine summaries into a structured narrative
     body = ""
-    for item in summaries:
-        body += f"{item['category'].capitalize()}:\n{item['summary']}\n\n"
+    for summary in summaries:
+        body += f"{summary['category'].capitalize()}:\n{summary['summary']}\n\n"
 
     full_script = f"{intro}\n\n{body.strip()}\n\n{outro}"
 
-    if len(full_script) > 10000:
-        print("⚠️ Script too long, splitting into chunks...")
-        chunk_size = 9500
-        chunks = [
-            full_script[i:i + chunk_size] for i in range(0, len(full_script), chunk_size)
-        ]
-    else:
-        chunks = [full_script]
+    # Split if too long
+    chunk_size = 9500
+    chunks = [
+        full_script[i:i + chunk_size] for i in range(0, len(full_script), chunk_size)
+    ]
 
     audio_output = b""
     for idx, chunk in enumerate(chunks):
         print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
         try:
-            audio_chunk = generate(
-                api_key=api_key,
-                text=chunk,
-                voice="Rachel",
-                model="eleven_monolingual_v1",
-                stream=False  # stream must be set to False when collecting all at once
+            audio = client.text_to_speech.convert(
+                voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
+                model_id="eleven_monolingual_v1",
+                text=chunk
             )
-            audio_output += audio_chunk
+            audio_output += audio
         except Exception as e:
             print(f"❌ Error generating audio for chunk {idx + 1}: {e}")
-            continue
 
     if audio_output:
         filename = f"daily_email_recap_{get_today_string()}.mp3"
