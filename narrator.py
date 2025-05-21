@@ -40,7 +40,7 @@ def create_audio(summaries):
         print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
         try:
             audio = b"".join(client.text_to_speech.convert(
-                voice_id="b5Lt5W1wI1kV5WjS8jzd",  # Antoni – deeper tone, better suited for briefing
+                voice_id="8PwhAQYisogJcn6egCE6",  # Antoni – deeper tone, better suited for briefing
                 model_id="eleven_monolingual_v1",
                 text=chunk
             ))
