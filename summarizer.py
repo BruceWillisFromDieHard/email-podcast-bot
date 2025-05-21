@@ -1,64 +1,78 @@
 from collections import defaultdict
+import re
+
 
 def categorize_email(email):
-    sender = email["from"].lower()
-    subject = email["subject"].lower()
+    sender_email = email['from'].lower()
+    sender_name = email.get('sender_name', '').lower()
+    subject = email['subject'].lower()
+    body = email['body'].lower()
 
-    if "skmediagroup.com.au" in sender or "client" in subject or "urgent" in subject:
+    # Expanded and intelligent keyword sets
+    urgent_keywords = [
+        "urgent", "asap", "immediate", "important", "action required", "deadline",
+        "critical", "issue", "problem", "resolve", "respond now", "attention needed",
+        "must respond", "last chance", "payment due"
+    ]
+
+    internal_names = [
+        "andrew", "gereurd", "skmg", "team", "internal", "monday note", "staff update",
+        "check-in", "sync", "review", "note to team", "re: internal"
+    ]
+
+    news_sources = [
+        "new yorker", "nytimes", "new york times", "monocle", "puck", "axios", "politico",
+        "bloomberg", "reuters", "financial times", "ft.com", "techcrunch"
+    ]
+
+    newsletter_keywords = [
+        "substack", "digest", "newsletter", "roundup", "dispatch", "briefing",
+        "summary", "insights", "thoughts", "recap", "analysis", "reads"
+    ]
+
+    marketing_keywords = [
+        "sale", "shop", "deal", "ssense", "farfetch", "exclusive", "offer", "discount",
+        "limited time", "buy now", "save", "flash sale", "promotion", "special"
+    ]
+
+    if any(kw in subject or kw in body for kw in urgent_keywords):
         return "urgent"
-    elif any(x in sender for x in ["@skmediagroup.com.au", "andrew@skmediagroup.com.au"]):
+    if any(name in sender_name or name in subject for name in internal_names):
         return "internal"
-    elif any(x in sender for x in ["@puck.news", "nytimes.com", "monocle.com"]):
+    if any(source in sender_email or source in sender_name for source in news_sources):
         return "news"
-    elif any(x in sender for x in ["@substack.com", "newsletter"]):
+    if any(kw in subject or kw in body for kw in newsletter_keywords):
         return "newsletters"
-    elif any(x in sender for x in ["farfetch", "ssense", "matchesfashion", "mrporter"]):
+    if any(kw in subject or sender_email for kw in marketing_keywords):
         return "marketing"
-    else:
-        return "default"
+
+    return "default"
+
 
 def summarize_emails(emails):
     print("🔍 Step 2: Summarizing emails...")
 
-    # Sort emails into buckets
     buckets = defaultdict(list)
     for email in emails:
         tag = categorize_email(email)
         buckets[tag].append(email)
 
-    # Order of importance
-    priority_order = ["urgent", "internal", "news", "newsletters", "default", "marketing"]
-
     summaries = []
-
-    for tag in priority_order:
-        if tag not in buckets:
-            continue
-
-        grouped_emails = buckets[tag]
-
-        # Custom intro per category
-        if tag == "urgent":
-            intro = "⚠️ Here's what you need to handle first:"
-        elif tag == "internal":
-            intro = "👥 Internal chatter and updates:"
-        elif tag == "news":
-            intro = "🗞️ Big stories from trusted outlets:"
-        elif tag == "newsletters":
-            intro = "📬 Newsletter nuggets worth noting:"
-        elif tag == "marketing":
-            intro = "🛍️ Brand fluff and shopping bait:"
-        else:
-            intro = "📩 Everything else hanging out in the inbox:"
-
-        summary = f"{intro}\n"
+    for tag, grouped_emails in buckets.items():
+        summary_lines = []
 
         for email in grouped_emails:
-            summary += f"• {email['subject']} (from {email['from']})\n"
+            sender = re.sub(r'\s*<.*?>', '', email.get('from', ''))
+            headline = email['subject'].strip().capitalize()
+            snippet = email['body'].strip().split("\n")[0][:240].strip()
 
+            line = f"• From {sender}: {headline}. {snippet}"
+            summary_lines.append(line)
+
+        summary_text = f"\n".join(summary_lines)
         summaries.append({
             "category": tag,
-            "summary": summary.strip()
+            "summary": summary_text
         })
 
     return summaries
