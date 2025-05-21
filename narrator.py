@@ -1,17 +1,17 @@
 import os
-from elevenlabs.client import ElevenLabs
-from elevenlabs import Voice, VoiceSettings
 from dotenv import load_dotenv
+from elevenlabs import Voice, VoiceSettings, generate
 from datetime import datetime
 
 load_dotenv()
+
+def get_today_string():
+    return datetime.now().strftime("%A_%Y-%m-%d")
 
 def create_audio(summaries):
     api_key = os.getenv("ELEVENLABS_API_KEY")
     if not api_key:
         raise Exception("❌ ELEVENLABS_API_KEY not found in environment variables")
-
-    client = ElevenLabs(api_key=api_key)
 
     # Custom intro and outro
     intro = (
@@ -21,13 +21,12 @@ def create_audio(summaries):
 
     outro = "☕ That’s your lot. Give em hell today chief."
 
-    # Combine summaries with category headers
-    body = "\n\n".join([
-        f"{summary['category'].upper()}:\n{summary['summary']}"
-        for summary in summaries
-    ])
+    # Group summaries by tag with structure
+    body = ""
+    for item in summaries:
+        body += f"{item['category'].capitalize()}:\n{item['summary']}\n\n"
 
-    full_script = f"{intro}\n\n{body}\n\n{outro}"
+    full_script = f"{intro}\n\n{body.strip()}\n\n{outro}"
 
     if len(full_script) > 10000:
         print("⚠️ Script too long, splitting into chunks...")
@@ -42,21 +41,14 @@ def create_audio(summaries):
     for idx, chunk in enumerate(chunks):
         print(f"🎤 Generating chunk {idx + 1}/{len(chunks)}...")
         try:
-            stream = client.text_to_speech.stream(
+            audio_chunk = generate(
+                api_key=api_key,
                 text=chunk,
-                voice=Voice(
-                    voice_id="21m00Tcm4TlvDq8ikWAM",
-                    settings=VoiceSettings(
-                        stability=0.4,
-                        similarity_boost=0.75,
-                        style=0.5,
-                        use_speaker_boost=True
-                    )
-                ),
-                model_id="eleven_monolingual_v1"
+                voice="Rachel",
+                model="eleven_monolingual_v1",
+                stream=False  # stream must be set to False when collecting all at once
             )
-            for piece in stream:
-                audio_output += piece
+            audio_output += audio_chunk
         except Exception as e:
             print(f"❌ Error generating audio for chunk {idx + 1}: {e}")
             continue
@@ -68,6 +60,3 @@ def create_audio(summaries):
         print(f"✅ Audio saved to {filename}")
     else:
         raise Exception("❌ All audio generation attempts failed")
-
-def get_today_string():
-    return datetime.now().strftime("%A_%Y-%m-%d")
