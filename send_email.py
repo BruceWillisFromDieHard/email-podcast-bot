@@ -11,7 +11,8 @@ def send_email_with_attachment(filepath):
 
     with open(filepath, "rb") as f:
         data = f.read()
-        msg.add_attachment(data, maintype="audio", subtype="mpeg", filename=filepath)
+        filename = os.path.basename(filepath)
+        msg.add_attachment(data, maintype="audio", subtype="mpeg", filename=filename)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(os.getenv("EMAIL_FROM"), os.getenv("EMAIL_PASSWORD"))

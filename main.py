@@ -6,7 +6,6 @@ from summarizer import summarize_emails
 from narrator import create_audio
 from send_email import send_email_with_attachment
 import traceback
-import subprocess
 
 def main():
     print("✅ Script started!")
