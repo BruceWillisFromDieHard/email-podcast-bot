@@ -20,10 +20,10 @@ def main():
 
         if summaries:
             print("🎧 Step 3: Creating audio...")
-            create_audio(summaries)
+            filename = create_audio(summaries)
 
             print("📤 Step 4: Sending via email...")
-            send_email_with_attachment()
+            send_email_with_attachment(filename)
         else:
             print("📭 No podcast created — no relevant emails in time window.")
 
