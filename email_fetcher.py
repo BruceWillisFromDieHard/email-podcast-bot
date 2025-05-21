@@ -22,8 +22,10 @@ def get_token():
 
 def get_time_window():
     now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=11, minutes=30)).replace(microsecond=0)
-    return start.isoformat()
+    yesterday_8pm = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    if now.hour < 7 or (now.hour == 7 and now.minute < 30):
+        yesterday_8pm -= timedelta(days=1)
+    return yesterday_8pm.isoformat()
 
 def fetch_emails():
     access_token = get_token()
